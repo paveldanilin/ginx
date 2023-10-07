@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/paveldanilin/ginx"
@@ -47,11 +48,11 @@ func init() {
 		return []blogPost{}, 404
 	},
 		resolver.Query("page", 1),
-		ginx.ResponseContentType(gin.MIMEJSON), // <- overwrite controller ContentType
+		ginx.Produce(gin.MIMEJSON), // <- overwrite controller ContentType
 	)
 
 	// [GET] /users
-	controller.GET("/users", loadUsers, ginx.ResponseContentType(gin.MIMEPlain))
+	controller.GET("/users", loadUsers, ginx.Produce(gin.MIMEPlain))
 
 	// [POST] /users
 	controller.POST("/users", func(body requestbody.JSONData) string {
@@ -68,6 +69,27 @@ func init() {
 	controller.GET("/error", func() {
 		panic(fmt.Errorf("this is error from the '/error'"))
 	})
+
+	// [GET] /resolve/PathVariable?var2=1234&var3=test
+	controller.GET("/resolve/:var1",
+		func(pathVar1 string, queryVar1 int, queryVar2, queryUnknownVar, queryDefaultVar, headerVar1 string) map[string]any {
+			return map[string]any{
+				"pathVar1":        pathVar1,
+				"queryVar1":       queryVar1,
+				"queryVar2":       queryVar2,
+				"headerVar1":      headerVar1,
+				"queryUnknownVar": queryUnknownVar,
+				"queryDefaultVar": queryDefaultVar,
+			}
+		},
+		resolver.Path("var1", 1),
+		resolver.Query("var2", 2),
+		resolver.Query("var3", 3),
+		resolver.Query("var4", 4),
+		resolver.QueryOrDefault("var4", 5, "default-value"),
+		resolver.Header("token", 6),
+		ginx.ProduceJSON(),
+	)
 }
 
 func Test_GET(t *testing.T) {
@@ -117,4 +139,22 @@ func Test_ErrorIntercept(t *testing.T) {
 	res := controller.Tester().GET("/error", nil)
 
 	assert.Equal(t, "[[this is error from the '/error']]", res.Body.String())
+}
+
+func Test_GET_ResolveQueryPathHeader(t *testing.T) {
+	res := controller.Tester().GET("/resolve/PathVariable?var2=1234&var3=test", map[string]string{"token": "abcde1234567890"})
+
+	assert.Equal(t, "application/json; charset=utf-8", res.Header().Get("content-type"))
+
+	var responseData map[string]any
+	err := json.Unmarshal(res.Body.Bytes(), &responseData)
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "abcde1234567890", responseData["headerVar1"])
+	assert.Equal(t, "PathVariable", responseData["pathVar1"])
+	assert.Equal(t, "", responseData["queryUnknownVar"])
+	assert.Equal(t, float64(1234), responseData["queryVar1"])
+	assert.Equal(t, "test", responseData["queryVar2"])
+	assert.Equal(t, "default-value", responseData["queryDefaultVar"])
 }

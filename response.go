@@ -81,6 +81,8 @@ func (response) fromValue(v reflect.Value) Response {
 		} else {
 			return response{}.fromValue(reflect.Indirect(v))
 		}
+	case reflect.Map:
+		res.SetBody(v.Interface())
 	case reflect.Array, reflect.Slice:
 		if v.Len() == 0 {
 			res.SetBody([]any{})

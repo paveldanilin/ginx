@@ -25,19 +25,19 @@ type HandlerFunc any
 
 type HandlerOption any
 
-func ResponseContentType(contentType string) func(*handler) {
+func Produce(contentType string) func(*handler) {
 	return func(h *handler) {
 		h.responseContentType = contentType
 	}
 }
 
-func ResponseJSON() func(*handler) {
+func ProduceJSON() func(*handler) {
 	return func(h *handler) {
 		h.responseContentType = gin.MIMEJSON
 	}
 }
 
-func ResponseXML() func(*handler) {
+func ProduceXML() func(*handler) {
 	return func(h *handler) {
 		h.responseContentType = gin.MIMEXML
 	}
