@@ -1,15 +1,13 @@
 ## GINx
 
 ```go
-r := gin.Default()
-
-blogController := ginx.NewController(r)
+blogController := ginx.NewController(gin.Default())
 
 // Controller produces JSON response.
 blogController.ContentType = gin.MIMEJSON
 
 // Controller resolves user function handler struct arguments.
-blogController.Use(resolver.StructResolver())
+blogController.Use(resolver.Struct())
 
 blogController.GET(
 	"/blog/:username/feed",

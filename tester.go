@@ -2,6 +2,7 @@ package ginx
 
 import (
 	"bytes"
+	"encoding/json"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,14 @@ func NewTester(r *gin.Engine) *Tester {
 func (t *Tester) POST(url string, body []byte) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", url, bytes.NewReader(body))
+	t.router.ServeHTTP(w, req)
+	return w
+}
+
+func (t *Tester) POSTJson(url string, body any) *httptest.ResponseRecorder {
+	bodyData, _ := json.Marshal(body)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", url, bytes.NewReader(bodyData))
 	t.router.ServeHTTP(w, req)
 	return w
 }

@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/paveldanilin/ginx"
@@ -25,8 +24,12 @@ func init() {
 	controller = ginx.NewController(gin.Default())
 	controller.ContentType = gin.MIMEXML
 
-	controller.Use(resolver.HttpRequest()) // <- now we can use *http.Request object in user handlers, see 'loadUsers'.
-	controller.Use(resolver.StructResolver())
+	controller.Use(ginx.ErrorInterceptorFunc(func(e ginx.Error) {
+		// Decorate error
+		e.Response().SetBody(fmt.Sprintf("[[%s]]", e.Error().Error()))
+	}))
+	controller.Use(resolver.HttpRequest()) // injects *http.Request
+	controller.Use(resolver.Struct())      // injects an instance of the given struct (populated from the income request)
 
 	// /hello/:user
 	controller.GET("/hello/:user", func(userName string) string {
@@ -60,6 +63,11 @@ func init() {
 	controller.POST("/orders", func(o order) string {
 		return fmt.Sprintf("<%s:%d:%s>", o.Product, o.ID, o.Extra)
 	})
+
+	// [GET] /error
+	controller.GET("/error", func() {
+		panic(fmt.Errorf("this is error from the '/error'"))
+	})
 }
 
 func Test_GET(t *testing.T) {
@@ -87,22 +95,26 @@ func Test_GET_RequestResolver(t *testing.T) {
 }
 
 func Test_POST_JsonBodyMap(t *testing.T) {
-	jsonBody, _ := json.Marshal(map[string]any{
+	res := controller.Tester().POSTJson("/users", map[string]any{
 		"username": "Root",
 		"id":       12345,
 	})
-
-	res := controller.Tester().POST("/users", jsonBody)
 
 	assert.Equal(t, 200, res.Code)
 	assert.Equal(t, "<Root:12345>", res.Body.String())
 }
 
 func Test_POST_JsonBodyStruct(t *testing.T) {
-	jsonBody, _ := json.Marshal(order{ID: 123, Name: "MyORDER", Product: "coca-cola"})
-
-	res := controller.Tester().POST("/orders?extra=promotion", jsonBody)
+	res := controller.Tester().POSTJson(
+		"/orders?extra=promotion",
+		order{ID: 123, Name: "MyORDER", Product: "coca-cola"})
 
 	assert.Equal(t, 200, res.Code)
 	assert.Equal(t, "<coca-cola:123:promotion>", res.Body.String())
+}
+
+func Test_ErrorIntercept(t *testing.T) {
+	res := controller.Tester().GET("/error", nil)
+
+	assert.Equal(t, "[[this is error from the '/error']]", res.Body.String())
 }

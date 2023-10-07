@@ -57,7 +57,7 @@ func main() {
 	blogController.ContentType = gin.MIMEJSON
 
 	// Controller resolves user function handler struct arguments.
-	blogController.Use(resolver.StructResolver())
+	blogController.Use(resolver.Struct())
 
 	blogController.GET(
 		"/blog/:username/feed",

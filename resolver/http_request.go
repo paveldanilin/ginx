@@ -12,7 +12,11 @@ type httpRequestResolver struct {
 	priority
 }
 
-// HttpRequest creates a resolver which can inject *http.Request into user handler argumentPosition.
+// HttpRequest resolver injects *http.Request into user handler.
+//
+//	controller.GET("/foo", func(req *http.Request) {
+//		// Do something with http.Request
+//	})
 func HttpRequest() *httpRequestResolver {
 	return &httpRequestResolver{priority{value: 200}}
 }
