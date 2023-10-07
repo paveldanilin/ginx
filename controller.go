@@ -124,7 +124,7 @@ func (c *Controller) registerHandler(method, path string, handlerFunc HandlerFun
 
 	h.init(c.argumentResolvers, opts...)
 
-	c.handlerMap[getHandlerId(method, path)] = h
+	c.handlerMap[getHandlerId(method, c.BasePath+path)] = h
 
 	// [<controller.middlewares>, <handler.middlewares>, <request.handler>]
 	var ginHandlers []gin.HandlerFunc = slices.Join(c.middlewares, handlerOptions(opts).Middlewares())
