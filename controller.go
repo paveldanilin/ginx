@@ -11,6 +11,8 @@ import (
 	"strings"
 )
 
+type Option any
+
 type Controller struct {
 	BasePath          string
 	ContentType       string
@@ -48,19 +50,24 @@ func NewDefaultController(r *gin.Engine) *Controller {
 	// Context creates a resolver which can inject gin.Context.Request.Context() into user handler argument.
 	c.Use(resolver.Context())
 	// Bind request body into struct, bind query/header/path values by tag 'ginx'.
-	c.Use(resolver.StructResolver())
+	c.Use(resolver.Struct())
 
 	return c
 }
 
-func (c *Controller) Use(opt HandlerOption) {
+func (c *Controller) Use(opt Option) {
 	if r, isResolver := opt.(ArgumentResolver); isResolver {
 		c.argumentResolvers = append(c.argumentResolvers, r)
 		return
 	}
 
-	if middleware, isMiddleware := opt.(gin.HandlerFunc); isMiddleware {
-		c.middlewares = append(c.middlewares, middleware)
+	if m, isMiddleware := opt.(gin.HandlerFunc); isMiddleware {
+		c.middlewares = append(c.middlewares, m)
+		return
+	}
+
+	if i, isErrorInterceptor := opt.(ErrorInterceptor); isErrorInterceptor {
+		c.errorInterceptor = i
 		return
 	}
 }
@@ -146,6 +153,12 @@ func (c *Controller) registerHandler(method, path string, handlerFunc HandlerFun
 }
 
 func (c *Controller) handleRequest(ctx *gin.Context) {
+	defer func() {
+		if err := recover(); err != nil {
+			c.handlePanic(ctx, err)
+		}
+	}()
+
 	h := c.getHandler(ctx)
 	if h == nil {
 		panic("handler not found")
@@ -167,6 +180,14 @@ func (c *Controller) handleRequest(ctx *gin.Context) {
 	c.response(ctx, handlerResponse)
 }
 
+func (c *Controller) handlePanic(ctx *gin.Context, err any) {
+	e := newError(ctx, err)
+	if c.errorInterceptor != nil {
+		c.errorInterceptor.InterceptError(e)
+	}
+	c.sendResponse(ctx, e.Response())
+}
+
 func (c *Controller) response(ctx *gin.Context, handlerResponse []reflect.Value) {
 	switch len(handlerResponse) {
 	case 0:
@@ -175,9 +196,9 @@ func (c *Controller) response(ctx *gin.Context, handlerResponse []reflect.Value)
 	case 1:
 		// If user handler returns: (<error>)
 		if isError(handlerResponse[0]) {
-			e := newErrorEvent(ctx, handlerResponse[0])
+			e := newError(ctx, handlerResponse[0])
 			if c.errorInterceptor != nil {
-				c.errorInterceptor.Intercept(e)
+				c.errorInterceptor.InterceptError(e)
 			}
 			c.sendResponse(ctx, e.Response())
 			return
@@ -190,18 +211,18 @@ func (c *Controller) response(ctx *gin.Context, handlerResponse []reflect.Value)
 	default:
 		// If user handler returns: (<userdata>, <error>)
 		if isError(handlerResponse[1]) {
-			e := newErrorEvent(ctx, handlerResponse[1].Interface())
+			e := newError(ctx, handlerResponse[1].Interface())
 			if c.errorInterceptor != nil {
-				c.errorInterceptor.Intercept(e)
+				c.errorInterceptor.InterceptError(e)
 			}
 			c.sendResponse(ctx, e.Response())
 			return
 		}
 		// If user handler returns: (<error>, <userdata>)
 		if isError(handlerResponse[0]) {
-			e := newErrorEvent(ctx, handlerResponse[0].Interface())
+			e := newError(ctx, handlerResponse[0].Interface())
 			if c.errorInterceptor != nil {
-				c.errorInterceptor.Intercept(e)
+				c.errorInterceptor.InterceptError(e)
 			}
 			c.sendResponse(ctx, e.Response())
 			return

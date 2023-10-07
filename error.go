@@ -7,10 +7,16 @@ import (
 )
 
 type ErrorInterceptor interface {
-	Intercept(e ErrorEvent)
+	InterceptError(Error)
 }
 
-type ErrorEvent interface {
+type ErrorInterceptorFunc func(Error)
+
+func (f ErrorInterceptorFunc) InterceptError(e Error) {
+	f(e)
+}
+
+type Error interface {
 	Context() *gin.Context
 	Error() error
 	Response() Response
@@ -22,10 +28,10 @@ type errorEvent struct {
 	res Response
 }
 
-func newErrorEvent(ctx *gin.Context, err any) ErrorEvent {
+func newError(ctx *gin.Context, err any) *errorEvent {
 	return &errorEvent{
 		ctx: ctx,
-		err: valueToError(err),
+		err: anyToError(err),
 		res: NewResponse(500),
 	}
 }
@@ -42,7 +48,7 @@ func (e errorEvent) Response() Response {
 	return e.res
 }
 
-func valueToError(v any) error {
+func anyToError(v any) error {
 	switch t := v.(type) {
 	case error:
 		return t
