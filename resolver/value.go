@@ -3,6 +3,7 @@ package resolver
 import (
 	"errors"
 	"github.com/gin-gonic/gin"
+	"net/textproto"
 	"reflect"
 	"strconv"
 )
@@ -12,78 +13,84 @@ type valueResolver struct {
 	scope            Scope
 	variable         string
 	argumentPosition int
+	defaultValue     any
 }
 
-func Value(scope Scope, variable string, argumentPosition int) *valueResolver {
+func Value(scope Scope, variable string, argumentPosition int, defaultValue any) *valueResolver {
 	return &valueResolver{
-		priority:         priority{value: 256},
+		priority:         priority{value: 250},
 		scope:            scope,
 		variable:         variable,
 		argumentPosition: argumentPosition,
+		defaultValue:     defaultValue,
 	}
 }
 
-// Path creates a value resolver which can inject a path variable into user handler argument.
-func Path(variable string, argumentPosition int) *valueResolver {
-	return &valueResolver{
-		priority:         priority{value: 256},
-		scope:            ScopePath,
-		variable:         variable,
-		argumentPosition: argumentPosition,
-	}
+// Path creates a resolver which can inject a path value.
+func Path(pathVariable string, argumentPosition int) *valueResolver {
+	return Value(ScopePath, pathVariable, argumentPosition, nil)
 }
 
-// Query creates a value resolver which can inject a query variable into user handler argument.
-func Query(variable string, argumentPosition int) *valueResolver {
-	return &valueResolver{
-		priority:         priority{value: 256},
-		scope:            ScopeQuery,
-		variable:         variable,
-		argumentPosition: argumentPosition,
-	}
+// Query creates a resolver which can inject a query value.
+func Query(queryVariable string, argumentPosition int) *valueResolver {
+	return Value(ScopeQuery, queryVariable, argumentPosition, nil)
 }
 
-// Header creates a value resolver which can inject a header variable into user handler argument.
-func Header(variable string, argumentPosition int) *valueResolver {
-	return &valueResolver{
-		priority:         priority{value: 256},
-		scope:            ScopeHeader,
-		variable:         variable,
-		argumentPosition: argumentPosition,
-	}
+func QueryOrDefault(queryVariable string, argumentPosition int, defaultValue any) *valueResolver {
+	return Value(ScopeQuery, queryVariable, argumentPosition, defaultValue)
 }
 
-func (r *valueResolver) CanResolve(ctx *gin.Context, argumentType reflect.Type, argument int) bool {
-	if r.argumentPosition != argument {
-		return false
-	}
+// Header creates a resolver which can inject a header value.
+func Header(headerVariable string, argumentPosition int) *valueResolver {
+	return Value(ScopeHeader, headerVariable, argumentPosition, nil)
+}
 
-	switch r.scope {
-	case ScopePath:
-		_, exists := ctx.Params.Get(r.variable)
-		return exists && isScalar(argumentType)
-	case ScopeQuery:
-		_, exits := ctx.GetQuery(r.variable)
-		return exits && isScalar(argumentType)
-	case ScopeHeader:
-		return true
-	}
+func (r *valueResolver) CanResolve(_ *gin.Context, argumentType reflect.Type, argument int) bool {
+	return r.argumentPosition == argument && isScalar(argumentType)
+}
 
-	return false
+func (r *valueResolver) defaultValueToArgumentType(defaultValue any, argumentType reflect.Type) reflect.Value {
+	if defaultValue == nil {
+		switch argumentType.Kind() {
+		case reflect.String:
+			return reflect.ValueOf("")
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return reflect.ValueOf(0)
+		case reflect.Float32, reflect.Float64:
+			return reflect.ValueOf(0.0)
+		case reflect.Bool:
+			return reflect.ValueOf(false)
+		case reflect.Pointer:
+			return reflect.ValueOf(nil)
+		}
+	}
+	return reflect.ValueOf(defaultValue)
 }
 
 func (r *valueResolver) Resolve(ctx *gin.Context, argumentType reflect.Type) (reflect.Value, error) {
 	var val string
 	switch r.scope {
 	case ScopePath:
-		val, _ = ctx.Params.Get(r.variable)
+		if v, exists := ctx.Params.Get(r.variable); exists {
+			val = v
+		} else {
+			return r.defaultValueToArgumentType(r.defaultValue, argumentType), nil
+		}
 	case ScopeQuery:
-		val, _ = ctx.GetQuery(r.variable)
+		if v, exists := ctx.GetQuery(r.variable); exists {
+			val = v
+		} else {
+			return r.defaultValueToArgumentType(r.defaultValue, argumentType), nil
+		}
 	case ScopeHeader:
-		val = ctx.GetHeader(r.variable)
+		if _, exists := ctx.Request.Header[textproto.CanonicalMIMEHeaderKey(r.variable)]; exists {
+			val = ctx.GetHeader(r.variable)
+		} else {
+			return r.defaultValueToArgumentType(r.defaultValue, argumentType), nil
+		}
 	}
 
-	// Convert value to the argumentPosition type.
+	// Convert value to the argument type.
 	switch argumentType.Kind() {
 	case reflect.String:
 		return reflect.ValueOf(val), nil
