@@ -111,19 +111,19 @@ func (r *valueResolver) Resolve(ctx *gin.Context, argumentType reflect.Type) (re
 		if err != nil {
 			return reflect.ValueOf(0), err
 		}
-		return reflect.ValueOf(i), nil
+		return reflect.ValueOf(int8(i)), nil
 	case reflect.Int16:
 		i, err := strconv.ParseInt(val, 10, 16)
 		if err != nil {
 			return reflect.ValueOf(0), err
 		}
-		return reflect.ValueOf(i), nil
+		return reflect.ValueOf(int16(i)), nil
 	case reflect.Int32:
 		i, err := strconv.ParseInt(val, 10, 32)
 		if err != nil {
 			return reflect.ValueOf(0), err
 		}
-		return reflect.ValueOf(i), nil
+		return reflect.ValueOf(int32(i)), nil
 	case reflect.Int64:
 		i, err := strconv.ParseInt(val, 10, 64)
 		if err != nil {
@@ -147,25 +147,25 @@ func (r *valueResolver) Resolve(ctx *gin.Context, argumentType reflect.Type) (re
 		if err != nil {
 			return reflect.ValueOf(0), err
 		}
-		return reflect.ValueOf(i), nil
+		return reflect.ValueOf(uint(i)), nil
 	case reflect.Uint8:
 		i, err := strconv.ParseUint(val, 10, 8)
 		if err != nil {
 			return reflect.ValueOf(0), err
 		}
-		return reflect.ValueOf(i), nil
+		return reflect.ValueOf(uint8(i)), nil
 	case reflect.Uint16:
 		i, err := strconv.ParseUint(val, 10, 16)
 		if err != nil {
 			return reflect.ValueOf(0), err
 		}
-		return reflect.ValueOf(i), nil
+		return reflect.ValueOf(uint16(i)), nil
 	case reflect.Uint32:
 		i, err := strconv.ParseUint(val, 10, 32)
 		if err != nil {
 			return reflect.ValueOf(0), err
 		}
-		return reflect.ValueOf(i), nil
+		return reflect.ValueOf(uint32(i)), nil
 	case reflect.Uint64:
 		i, err := strconv.ParseUint(val, 10, 64)
 		if err != nil {
